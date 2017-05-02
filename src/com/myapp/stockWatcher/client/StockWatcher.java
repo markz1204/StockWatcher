@@ -8,6 +8,7 @@ import com.google.gwt.event.dom.client.KeyCodes;
 import com.google.gwt.http.client.*;
 import com.google.gwt.i18n.client.DateTimeFormat;
 import com.google.gwt.i18n.client.NumberFormat;
+import com.google.gwt.jsonp.client.JsonpRequestBuilder;
 import com.google.gwt.user.client.Timer;
 import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.rpc.AsyncCallback;
@@ -32,6 +33,7 @@ public class StockWatcher implements EntryPoint {
     private StockPriceServiceAsync stockPriceServiceAsync = GWT.create(StockPriceService.class);
     private Label errorMsgLabel = new Label();
     private static final String JSON_URL = GWT.getModuleBaseURL() + "jsonStockPrices?q=";
+    private static final String REMOTE_JSON_URL = "http://127.0.0.1:8000/?q=";
 
     /**
      * This is the entry point method.
@@ -89,7 +91,7 @@ public class StockWatcher implements EntryPoint {
     }
 
     private void refreshWatchList() {
-        getJsonPrices();
+        getJsonPricesFromRemote();
     }
 
     private void displayError(String error) {
@@ -97,7 +99,42 @@ public class StockWatcher implements EntryPoint {
         errorMsgLabel.setVisible(true);
     }
 
-    private void getJsonPrices(){
+    private void getJsonPricesFromRemote() {
+        if (stocks.size() == 0) {
+            return;
+        }
+
+        String url = REMOTE_JSON_URL;
+
+        // Append watch list stock symbols to query URL.
+        Iterator<String> iter = stocks.iterator();
+        while (iter.hasNext()) {
+            url += iter.next();
+            if (iter.hasNext()) {
+                url += "+";
+            }
+        }
+
+        url = URL.encode(url);
+
+        JsonpRequestBuilder builder = new JsonpRequestBuilder();
+        builder.requestObject(url, new AsyncCallback<JsArray<StockData>>() {
+            public void onFailure(Throwable caught) {
+                displayError("Couldn't retrieve JSON");
+            }
+
+            public void onSuccess(JsArray<StockData> data) {
+                if (data == null) {
+                    displayError("Couldn't retrieve JSON");
+                    return;
+                }
+
+                updateTable(data);
+            }
+        });
+    }
+
+    private void getJsonPrices() {
         if (stocks.size() == 0) {
             return;
         }
@@ -138,7 +175,7 @@ public class StockWatcher implements EntryPoint {
 
     }
 
-    private void asyncGetPrices(){
+    private void asyncGetPrices() {
         if (stockPriceServiceAsync == null) {
             stockPriceServiceAsync = GWT.create(StockPriceService.class);
         }
@@ -148,7 +185,7 @@ public class StockWatcher implements EntryPoint {
             public void onFailure(Throwable caught) {
                 String details = caught.getMessage();
                 if (caught instanceof DelistedException) {
-                    details = "Company '" + ((DelistedException)caught).getSymbol() + "' was delisted";
+                    details = "Company '" + ((DelistedException) caught).getSymbol() + "' was delisted";
                 }
 
                 errorMsgLabel.setText("Error: " + details);
@@ -171,7 +208,7 @@ public class StockWatcher implements EntryPoint {
     }
 
     private void updateTable(JsArray<StockData> prices) {
-        for (int i=0; i < prices.length(); i++) {
+        for (int i = 0; i < prices.length(); i++) {
             updateTable(prices.get(i));
         }
 
@@ -204,8 +241,7 @@ public class StockWatcher implements EntryPoint {
         String changeStyleName = "noChange";
         if (price.getChangePercent() < -0.1f) {
             changeStyleName = "negativeChange";
-        }
-        else if (price.getChangePercent() > 0.1f) {
+        } else if (price.getChangePercent() > 0.1f) {
             changeStyleName = "positiveChange";
         }
 
@@ -234,8 +270,7 @@ public class StockWatcher implements EntryPoint {
         String changeStyleName = "noChange";
         if (price.getChangePercentage() < -0.1f) {
             changeStyleName = "negativeChange";
-        }
-        else if (price.getChangePercentage() > 0.1f) {
+        } else if (price.getChangePercentage() > 0.1f) {
             changeStyleName = "positiveChange";
         }
 
